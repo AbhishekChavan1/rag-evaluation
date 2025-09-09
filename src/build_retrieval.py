@@ -5,7 +5,7 @@ from chromadb.utils.embedding_functions import SentenceTransformerEmbeddingFunct
 from utils import extract_main_topics
 import chromadb
 
-PATH_FILE = 'data/raw/test.parquet'
+PATH_FILE = '/workspaces/rag-evaluation/data/raw/test.parquet'
 
 def generate_text_file(path_file):
     """ 
@@ -63,23 +63,34 @@ def get_token_splits(text):
 
 
 
-def init_retrieval_model(token_split_texts, embedding_function):
+def init_retrieval_model(token_split_texts, embedding_function, batch_size=5000):
     """ 
-    Initialize the retrieval model
+    Initialize the retrieval model with batch insertion to avoid Chroma max batch size error.
     
     Args:
         token_split_texts (list): A list of tokenized and split texts.
         embedding_function (function): The embedding function to be used for encoding the texts.
+        batch_size (int): Number of documents to insert per batch.
     
     Returns:
         None
     """
     chroma_client = chromadb.PersistentClient("chroma.db")
-    chroma_collection = chroma_client.get_or_create_collection("test", embedding_function=embedding_function)
+    chroma_collection = chroma_client.get_or_create_collection(
+        "test", embedding_function=embedding_function
+    )
+
     ids = [str(i) for i in range(len(token_split_texts))]
-    chroma_collection.add(ids=ids, documents=token_split_texts)
+
+    # Insert in batches
+    for i in range(0, len(ids), batch_size):
+        batch_ids = ids[i:i+batch_size]
+        batch_docs = token_split_texts[i:i+batch_size]
+        chroma_collection.add(ids=batch_ids, documents=batch_docs)
+        print(f"Inserted batch {i} - {i+len(batch_docs)}")
 
     print("Collection name:", chroma_collection.name)
+
 
 
 def main():
